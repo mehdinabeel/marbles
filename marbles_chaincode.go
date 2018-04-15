@@ -53,8 +53,8 @@ under the License.
 // {"index":{"fields":["chaincodeid","data.docType","data.owner"]},"ddoc":"indexOwnerDoc", "name":"indexOwner","type":"json"}
 //
 // example curl definition for use with command line
-// curl -i -X POST -H "Content-Type: application/json" -d "{\"index\":{\"fields\":[\"chaincodeid\",\"data.docType\",\"data.owner\"]},\"name\":\"indexOwner\",\"ddoc\":\"indexOwnerDoc\",\"type\":\"json\"}" http://hostname:port/myc1/_index
-//
+// curl -i -X POST -H "Content-Type: application/json" -d "{"index":{"fields":["chaincodeid\",\"data.docType\",\"data.owner\"]},\"name\":\"indexOwner\",\"ddoc\":\"indexOwnerDoc\",\"type\":\"json\"}" http://156.151.96.127:5100/myc1/_index
+/
 
 // Index for chaincodeid, docType, owner, size (descending order).
 // Note that docType, owner and size fields must be prefixed with the "data" wrapper
@@ -90,12 +90,13 @@ import (
 type SimpleChaincode struct {
 }
 
-type marble struct {
+type REC struct {
 	ObjectType string `json:"docType"` //docType is used to distinguish the various types of objects in state database
-	Name       string `json:"name"`    //the fieldtags are needed to keep case from bouncing around
-	Color      string `json:"color"`
-	Size       int    `json:"size"`
+	Name     string `json:"mon_year_bill5"`    //the fieldtags are needed to keep case from bouncing around
+	Country      string `json:"country"`
+	Price       int    `json:"price"`
 	Owner      string `json:"owner"`
+	Life       int    `json:"life"`
 }
 
 // ===================================================================================
@@ -121,24 +122,24 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("invoke is running " + function)
 
 	// Handle different functions
-	if function == "initMarble" { //create a new marble
-		return t.initMarble(stub, args)
-	} else if function == "transferMarble" { //change owner of a specific marble
-		return t.transferMarble(stub, args)
-	} else if function == "transferMarblesBasedOnColor" { //transfer all marbles of a certain color
-		return t.transferMarblesBasedOnColor(stub, args)
-	} else if function == "delete" { //delete a marble
-		return t.delete(stub, args)
-	} else if function == "readMarble" { //read a marble
-		return t.readMarble(stub, args)
-	} else if function == "queryMarblesByOwner" { //find marbles for owner X using rich query
-		return t.queryMarblesByOwner(stub, args)
-	} else if function == "queryMarbles" { //find marbles based on an ad hoc rich query
-		return t.queryMarbles(stub, args)
-	} else if function == "getHistoryForMarble" { //get history of values for a marble
-		return t.getHistoryForMarble(stub, args)
-	} else if function == "getMarblesByRange" { //get marbles based on range query
-		return t.getMarblesByRange(stub, args)
+	if function == "createREC" { //create a new REC
+		return t.createREC(stub, args)
+	} else if function == "transferREC" { //change owner of a specific REC
+		return t.transferREC(stub, args)
+	} else if function == "transferRECSbyCountry" { //transfer all available RECS from one country.
+		return t.transferRECSbyCountry(stub, args)
+	} else if function == "consume" { //consume a REC
+		return t.consume(stub, args)
+	} else if function == "RECdet" { //REC details
+		return t.RECdet(stub, args)
+	} else if function == "queryRECByOwner" { //find REC for owner X using rich query
+		return t.queryRECByOwner(stub, args)
+	} else if function == "queryREC" { //find RECs based on an ad hoc rich query
+		return t.queryREC(stub, args)
+	} else if function == "getHistoryForREC" { //get history of values for a REC
+		return t.getHistoryForREC(stub, args)
+	} else if function == "getRECsByRange" { //get REC based on range query
+		return t.getRECsByRange(stub, args)
 	}
 
 	fmt.Println("invoke did not find func: " + function) //error
@@ -146,19 +147,19 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 }
 
 // ============================================================
-// initMarble - create a new marble, store into chaincode state
+// initMarble - create a new REC, store into chaincode state
 // ============================================================
-func (t *SimpleChaincode) initMarble(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) createREC(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var err error
 
-	//   0       1       2     3
-	// "asdf", "blue", "35", "bob"
+	//   0                   1       2     3
+	// "jan_2018_563422", "US",     "20", "Duke Energy"
 	if len(args) != 4 {
 		return shim.Error("Incorrect number of arguments. Expecting 4")
 	}
 
 	// ==== Input sanitation ====
-	fmt.Println("- start init marble")
+	fmt.Println("- start create REC")
 	if len(args[0]) <= 0 {
 		return shim.Error("1st argument must be a non-empty string")
 	}
@@ -171,78 +172,75 @@ func (t *SimpleChaincode) initMarble(stub shim.ChaincodeStubInterface, args []st
 	if len(args[3]) <= 0 {
 		return shim.Error("4th argument must be a non-empty string")
 	}
-	marbleName := args[0]
-	color := strings.ToLower(args[1])
+	RECname := args[0]
+	country := strings.ToLower(args[1])
 	owner := strings.ToLower(args[3])
-	size, err := strconv.Atoi(args[2])
+	price, err := strconv.Atoi(args[2])
 	if err != nil {
 		return shim.Error("3rd argument must be a numeric string")
 	}
 
-	// ==== Check if marble already exists ====
-	marbleAsBytes, err := stub.GetState(marbleName)
+	// ==== Check if REC already exists ====
+	RECAsBytes, err := stub.GetState(RECname)
 	if err != nil {
-		return shim.Error("Failed to get marble: " + err.Error())
-	} else if marbleAsBytes != nil {
-		fmt.Println("This marble already exists: " + marbleName)
-		return shim.Error("This marble already exists: " + marbleName)
+		return shim.Error("Failed to get rec: " + err.Error())
+	} else if RECAsBytes != nil {
+		fmt.Println("This REC already exists: " + RECname)
+		return shim.Error("This REC already exists: " + RECname)
 	}
 
-	// ==== Create marble object and marshal to JSON ====
-	objectType := "marble"
-	marble := &marble{objectType, marbleName, color, size, owner}
-	marbleJSONasBytes, err := json.Marshal(marble)
+	// ==== Create REC object and marshal to JSON ====
+	objectType := "REC"
+	REC := &REC{objectType, RECname, country, price, owner,life}
+	RECJSONasBytes, err := json.Marshal(REC)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
-	//Alternatively, build the marble json string manually if you don't want to use struct marshalling
-	//marbleJSONasString := `{"docType":"Marble",  "name": "` + marbleName + `", "color": "` + color + `", "size": ` + strconv.Itoa(size) + `, "owner": "` + owner + `"}`
-	//marbleJSONasBytes := []byte(str)
-
-	// === Save marble to state ===
-	err = stub.PutState(marbleName, marbleJSONasBytes)
+	=
+	// === Save REC to state ===
+	err = stub.PutState(RECname, RECJSONasBytes)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
-	//  ==== Index the marble to enable color-based range queries, e.g. return all blue marbles ====
+	//  ==== Index the REC for country-based range queries, e.g. return all MEXICO RECS ====
 	//  An 'index' is a normal key/value entry in state.
 	//  The key is a composite key, with the elements that you want to range query on listed first.
-	//  In our case, the composite key is based on indexName~color~name.
+	//  In our case, the composite key is based on indexName~country~mon_year_bill5.
 	//  This will enable very efficient state range queries based on composite keys matching indexName~color~*
-	indexName := "color~name"
-	colorNameIndexKey, err := stub.CreateCompositeKey(indexName, []string{marble.Color, marble.Name})
+	indexName := "country~mon_year_bill5"
+	countryNameIndexKey, err := stub.CreateCompositeKey(indexName, []string{REC.country, REC.mon_year_bill5})
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 	//  Save index entry to state. Only the key name is needed, no need to store a duplicate copy of the marble.
 	//  Note - passing a 'nil' value will effectively delete the key from state, therefore we pass null character as value
 	value := []byte{0x00}
-	stub.PutState(colorNameIndexKey, value)
+	stub.PutState(countryNameIndexKey, value)
 
 	// ==== Marble saved and indexed. Return success ====
-	fmt.Println("- end init marble")
+	fmt.Println("- end init REC")
 	return shim.Success(nil)
 }
 
 // ===============================================
-// readMarble - read a marble from chaincode state
+// RECdet - read a REC from chaincode state
 // ===============================================
-func (t *SimpleChaincode) readMarble(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) RECdet(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var name, jsonResp string
 	var err error
 
 	if len(args) != 1 {
-		return shim.Error("Incorrect number of arguments. Expecting name of the marble to query")
+		return shim.Error("Incorrect number of arguments. Expecting ID of the REC to query")
 	}
 
 	name = args[0]
-	valAsbytes, err := stub.GetState(name) //get the marble from chaincode state
+	valAsbytes, err := stub.GetState(mon_year_bill5) //get the REC from chaincode state
 	if err != nil {
-		jsonResp = "{\"Error\":\"Failed to get state for " + name + "\"}"
+		jsonResp = "{\"Error\":\"Failed to get state for " + mon_year_bill5 + "\"}"
 		return shim.Error(jsonResp)
 	} else if valAsbytes == nil {
-		jsonResp = "{\"Error\":\"Marble does not exist: " + name + "\"}"
+		jsonResp = "{\"Error\":\"REC does not exist: " + mon_year_bill5 + "\"}"
 		return shim.Error(jsonResp)
 	}
 
@@ -250,88 +248,87 @@ func (t *SimpleChaincode) readMarble(stub shim.ChaincodeStubInterface, args []st
 }
 
 // ==================================================
-// delete - remove a marble key/value pair from state
+// consume - remove a REC key/value pair from state
 // ==================================================
-func (t *SimpleChaincode) delete(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) consume(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var jsonResp string
-	var marbleJSON marble
+	var RECJSON REC
 	if len(args) != 1 {
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
-	marbleName := args[0]
+	RECname := args[0]
 
-	// to maintain the color~name index, we need to read the marble first and get its color
-	valAsbytes, err := stub.GetState(marbleName) //get the marble from chaincode state
+	// to maintain the countryr~mon_year_bill5 index, we need to read the REC first and get its country
+	valAsbytes, err := stub.GetState(RECname) //get the REC from chaincode state
 	if err != nil {
-		jsonResp = "{\"Error\":\"Failed to get state for " + marbleName + "\"}"
+		jsonResp = "{\"Error\":\"Failed to get state for " + RECname + "\"}"
 		return shim.Error(jsonResp)
 	} else if valAsbytes == nil {
-		jsonResp = "{\"Error\":\"Marble does not exist: " + marbleName + "\"}"
+		jsonResp = "{\"Error\":\"REC does not exist: " + RECname + "\"}"
 		return shim.Error(jsonResp)
 	}
 
 	err = json.Unmarshal([]byte(valAsbytes), &marbleJSON)
 	if err != nil {
-		jsonResp = "{\"Error\":\"Failed to decode JSON of: " + marbleName + "\"}"
+		jsonResp = "{\"Error\":\"Failed to decode JSON of: " + RECname + "\"}"
 		return shim.Error(jsonResp)
 	}
 
-	err = stub.DelState(marbleName) //remove the marble from chaincode state
+	err = stub.DelState(RECname) //remove the REC from chaincode state
 	if err != nil {
-		return shim.Error("Failed to delete state:" + err.Error())
+		return shim.Error("Failed to consume state:" + err.Error())
 	}
 
 	// maintain the index
-	indexName := "color~name"
-	colorNameIndexKey, err := stub.CreateCompositeKey(indexName, []string{marbleJSON.Color, marbleJSON.Name})
+	indexName := "country~mon_year_bill5"
+	countryNameIndexKey, err := stub.CreateCompositeKey(indexName, []string{marbleJSON.country, marbleJSON.mon_year_bill5})
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
 	//  Delete index entry to state.
-	err = stub.DelState(colorNameIndexKey)
+	err = stub.DelState(countryNameIndexKey)
 	if err != nil {
-		return shim.Error("Failed to delete state:" + err.Error())
+		return shim.Error("Failed to consume state:" + err.Error())
 	}
 	return shim.Success(nil)
 }
 
 // ===========================================================
-// transfer a marble by setting a new owner name on the marble
+// transfer a REC by setting a new owner name on the marble
 // ===========================================================
-func (t *SimpleChaincode) transferMarble(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) transferREC(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	//   0       1
-	// "name", "bob"
+	// "name", "Oracle"
 	if len(args) < 2 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
 
-	marbleName := args[0]
+	RECname := args[0]
 	newOwner := strings.ToLower(args[1])
-	fmt.Println("- start transferMarble ", marbleName, newOwner)
+	fmt.Println("- start transferREC ", RECname, newOwner)
 
-	marbleAsBytes, err := stub.GetState(marbleName)
+	RECAsBytes, err := stub.GetState(RECname)
 	if err != nil {
-		return shim.Error("Failed to get marble:" + err.Error())
-	} else if marbleAsBytes == nil {
-		return shim.Error("Marble does not exist")
+		return shim.Error("Failed to get REC:" + err.Error())
+	} else if RECAsBytes == nil {
+		return shim.Error("REC does not exist")
 	}
 
-	marbleToTransfer := marble{}
-	err = json.Unmarshal(marbleAsBytes, &marbleToTransfer) //unmarshal it aka JSON.parse()
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-	marbleToTransfer.Owner = newOwner //change the owner
-
-	marbleJSONasBytes, _ := json.Marshal(marbleToTransfer)
-	err = stub.PutState(marbleName, marbleJSONasBytes) //rewrite the marble
+	RECToTransfer := REC{}
+	err = json.Unmarshal(RECAsBytes, &RECToTransfer) //unmarshal it aka JSON.parse()
 	if err != nil {
 		return shim.Error(err.Error())
 	}
+	RECToTransfer.Owner = newOwner //change the owner
 
-	fmt.Println("- end transferMarble (success)")
+	RECJSONasBytes, _ := json.Marshal(RECToTransfer)
+	err = stub.PutState(RECname, RECJSONasBytes) //rewrite the REC != nil {
+		return shim.Error(err.Error())
+	}
+
+	fmt.Println("- end transferREC (success)")
 	return shim.Success(nil)
 }
 
@@ -346,7 +343,7 @@ func (t *SimpleChaincode) transferMarble(stub shim.ChaincodeStubInterface, args 
 // time and commit time.
 // Therefore, range queries are a safe option for performing update transactions based on query results.
 // ===========================================================================================
-func (t *SimpleChaincode) getMarblesByRange(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) getRECsByRange (stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	if len(args) < 2 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
@@ -388,7 +385,7 @@ func (t *SimpleChaincode) getMarblesByRange(stub shim.ChaincodeStubInterface, ar
 	}
 	buffer.WriteString("]")
 
-	fmt.Printf("- getMarblesByRange queryResult:\n%s\n", buffer.String())
+	fmt.Printf("- getRECsByRange queryResult:\n%s\n", buffer.String())
 
 	return shim.Success(buffer.Bytes())
 }
@@ -401,31 +398,31 @@ func (t *SimpleChaincode) getMarblesByRange(stub shim.ChaincodeStubInterface, ar
 // committing peers if the result set has changed between endorsement time and commit time.
 // Therefore, range queries are a safe option for performing update transactions based on query results.
 // ===========================================================================================
-func (t *SimpleChaincode) transferMarblesBasedOnColor(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) transferRECSbyCountry(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	//   0       1
-	// "color", "bob"
+	// "country", "bob"
 	if len(args) < 2 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
 
 	color := args[0]
 	newOwner := strings.ToLower(args[1])
-	fmt.Println("- start transferMarblesBasedOnColor ", color, newOwner)
+	fmt.Println("- start transferRECSbyCountry ", color, newOwner)
 
-	// Query the color~name index by color
-	// This will execute a key range query on all keys starting with 'color'
-	coloredMarbleResultsIterator, err := stub.GetStateByPartialCompositeKey("color~name", []string{color})
+	// Query the color~name index by country
+	// This will execute a key range query on all keys starting with 'country'
+	countryResultsIterator, err := stub.GetStateByPartialCompositeKey("country~mon_year_bill5", []string{color})
 	if err != nil {
 		return shim.Error(err.Error())
 	}
-	defer coloredMarbleResultsIterator.Close()
+	defer countryResultsIterator.Close()
 
-	// Iterate through result set and for each marble found, transfer to newOwner
+	// Iterate through result set and for each REC found, transfer to newOwner. 
 	var i int
-	for i = 0; coloredMarbleResultsIterator.HasNext(); i++ {
+	for i = 0; countryResultsIterator.HasNext(); i++ {
 		// Note that we don't get the value (2nd return variable), we'll just get the marble name from the composite key
-		responseRange, err := coloredMarbleResultsIterator.Next()
+		responseRange, err := countryResultsIterator.Next()
 		if err != nil {
 			return shim.Error(err.Error())
 		}
@@ -435,21 +432,21 @@ func (t *SimpleChaincode) transferMarblesBasedOnColor(stub shim.ChaincodeStubInt
 		if err != nil {
 			return shim.Error(err.Error())
 		}
-		returnedColor := compositeKeyParts[0]
-		returnedMarbleName := compositeKeyParts[1]
-		fmt.Printf("- found a marble from index:%s color:%s name:%s\n", objectType, returnedColor, returnedMarbleName)
+		returnedCountry := compositeKeyParts[0]
+		returnedRECName := compositeKeyParts[1]
+		fmt.Printf("- found a REC from index:%s country:%s mon_year_bill5:%s\n", objectType, returnedCountry, returnedRECName)
 
-		// Now call the transfer function for the found marble.
-		// Re-use the same function that is used to transfer individual marbles
-		response := t.transferMarble(stub, []string{returnedMarbleName, newOwner})
+		// Now call the transfer function for the found REC.
+		// Re-use the same function that is used to transfer individual REC
+		response := t.transferREC(stub, []string{returnedRECName, newOwner})
 		// if the transfer failed break out of loop and return error
 		if response.Status != shim.OK {
 			return shim.Error("Transfer failed: " + response.Message)
 		}
 	}
 
-	responsePayload := fmt.Sprintf("Transferred %d %s marbles to %s", i, color, newOwner)
-	fmt.Println("- end transferMarblesBasedOnColor: " + responsePayload)
+	responsePayload := fmt.Sprintf("Transferred %d %s RECs to %s", i, country, newOwner)
+	fmt.Println("- end transferRECSbyCountry: " + responsePayload)
 	return shim.Success([]byte(responsePayload))
 }
 
@@ -472,7 +469,7 @@ func (t *SimpleChaincode) transferMarblesBasedOnColor(stub shim.ChaincodeStubInt
 // and accepting a single query parameter (owner).
 // Only available on state databases that support rich query (e.g. CouchDB)
 // =========================================================================================
-func (t *SimpleChaincode) queryMarblesByOwner(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) queryRECByOwner(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	//   0
 	// "bob"
@@ -482,7 +479,7 @@ func (t *SimpleChaincode) queryMarblesByOwner(stub shim.ChaincodeStubInterface, 
 
 	owner := strings.ToLower(args[0])
 
-	queryString := fmt.Sprintf("{\"selector\":{\"docType\":\"marble\",\"owner\":\"%s\"}}", owner)
+	queryString := fmt.Sprintf("{\"selector\":{\"docType\":\"REC\",\"owner\":\"%s\"}}", owner)
 
 	queryResults, err := getQueryResultForQueryString(stub, queryString)
 	if err != nil {
@@ -498,7 +495,7 @@ func (t *SimpleChaincode) queryMarblesByOwner(stub shim.ChaincodeStubInterface, 
 // If this is not desired, follow the queryMarblesForOwner example for parameterized queries.
 // Only available on state databases that support rich query (e.g. CouchDB)
 // =========================================================================================
-func (t *SimpleChaincode) queryMarbles(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) queryREC(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	//   0
 	// "queryString"
@@ -561,17 +558,17 @@ func getQueryResultForQueryString(stub shim.ChaincodeStubInterface, queryString 
 	return buffer.Bytes(), nil
 }
 
-func (t *SimpleChaincode) getHistoryForMarble(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) getHistoryForREC(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	if len(args) < 1 {
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
 
-	marbleName := args[0]
+	RECname := args[0]
 
-	fmt.Printf("- start getHistoryForMarble: %s\n", marbleName)
+	fmt.Printf("- start getHistoryForREC: %s\n", RECname)
 
-	resultsIterator, err := stub.GetHistoryForKey(marbleName)
+	resultsIterator, err := stub.GetHistoryForKey(RECname)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -621,7 +618,7 @@ func (t *SimpleChaincode) getHistoryForMarble(stub shim.ChaincodeStubInterface, 
 	}
 	buffer.WriteString("]")
 
-	fmt.Printf("- getHistoryForMarble returning:\n%s\n", buffer.String())
+	fmt.Printf("- getHistoryForREC returning:\n%s\n", buffer.String())
 
 	return shim.Success(buffer.Bytes())
 }
